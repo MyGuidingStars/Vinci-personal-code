@@ -1,0 +1,100 @@
+BL51 BANKED LINKER/LOCATER V6.22                                                        11/01/2026  21:20:28  PAGE 1
+
+
+BL51 BANKED LINKER/LOCATER V6.22, INVOKED BY:
+G:\KEIL5\C51\BIN\BL51.EXE .\Objects\5-1模块化编程.obj, .\Objects\Delay.obj TO .\Objects\5-1模块化编程 PRINT (.\Listings\
+>> 5-1模块化编程.m51) RAMSIZE (256)
+
+
+MEMORY MODEL: SMALL
+
+
+INPUT MODULES INCLUDED:
+  .\Objects\5-1模块化编程.obj (5_1__________)
+  .\Objects\Delay.obj (DELAY)
+  G:\KEIL5\C51\LIB\C51S.LIB (?C_STARTUP)
+
+
+LINK MAP OF MODULE:  .\Objects\5-1模块化编程 (5_1__________)
+
+
+            TYPE    BASE      LENGTH    RELOCATION   SEGMENT NAME
+            -----------------------------------------------------
+
+            * * * * * * *   D A T A   M E M O R Y   * * * * * * *
+            REG     0000H     0008H     ABSOLUTE     "REG BANK 0"
+            DATA    0008H     0002H     UNIT         _DATA_GROUP_
+            IDATA   000AH     0001H     UNIT         ?STACK
+
+            * * * * * * *   C O D E   M E M O R Y   * * * * * * *
+            CODE    0000H     0003H     ABSOLUTE     
+            CODE    0003H     001DH     UNIT         ?PR?_DELAY?DELAY
+            CODE    0020H     0014H     UNIT         ?PR?MAIN?5_1__________
+            CODE    0034H     000CH     UNIT         ?C_C51STARTUP
+
+
+
+OVERLAY MAP OF MODULE:   .\Objects\5-1模块化编程 (5_1__________)
+
+
+SEGMENT                          DATA_GROUP 
+  +--> CALLED SEGMENT          START    LENGTH
+----------------------------------------------
+?C_C51STARTUP                  -----    -----
+  +--> ?PR?MAIN?5_1__________
+
+?PR?MAIN?5_1__________         -----    -----
+  +--> ?PR?_DELAY?DELAY
+
+?PR?_DELAY?DELAY               0008H    0002H
+
+
+
+SYMBOL TABLE OF MODULE:  .\Objects\5-1模块化编程 (5_1__________)
+
+  VALUE           TYPE          NAME
+  ----------------------------------
+
+  -------         MODULE        5_1__________
+  C:0000H         SYMBOL        _ICE_DUMMY_
+  B:00A0H.0       PUBLIC        P2_0
+  C:0020H         PUBLIC        main
+BL51 BANKED LINKER/LOCATER V6.22                                                      11/01/2026  21:20:28  PAGE 2
+
+
+  -------         PROC          MAIN
+  C:0020H         LINE#         3
+  C:0020H         LINE#         4
+  C:0020H         LINE#         5
+  C:0022H         LINE#         6
+  C:0029H         LINE#         7
+  C:002BH         LINE#         8
+  C:0032H         LINE#         11
+  -------         ENDPROC       MAIN
+  -------         ENDMOD        5_1__________
+
+  -------         MODULE        DELAY
+  C:0000H         SYMBOL        _ICE_DUMMY_
+  C:0003H         PUBLIC        _delay
+  -------         PROC          _DELAY
+  D:0006H         SYMBOL        xms
+  -------         DO            
+  D:0008H         SYMBOL        i
+  D:0009H         SYMBOL        j
+  -------         ENDDO         
+  C:0003H         LINE#         1
+  C:0003H         LINE#         2
+  C:0003H         LINE#         3
+  C:000CH         LINE#         6
+  C:000FH         LINE#         7
+  C:0012H         LINE#         9
+  C:0012H         LINE#         10
+  C:0015H         LINE#         11
+  C:0018H         LINE#         12
+  C:001DH         LINE#         13
+  C:001FH         LINE#         15
+  -------         ENDPROC       _DELAY
+  -------         ENDMOD        DELAY
+
+Program Size: data=11.0 xdata=0 code=64
+LINK/LOCATE RUN COMPLETE.  0 WARNING(S),  0 ERROR(S)

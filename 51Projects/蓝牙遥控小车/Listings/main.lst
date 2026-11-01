@@ -1,0 +1,480 @@
+C51 COMPILER V9.54   MAIN                                                                  11/01/2026 21:19:06 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MAIN
+OBJECT MODULE PLACED IN .\Objects\main.obj
+COMPILER INVOKED BY: G:\Keil5\C51\BIN\C51.EXE main.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\main.l
+                    -st) OBJECT(.\Objects\main.obj)
+
+line level    source
+
+   1          #include <reg52.h>
+   2          #include "uart.h"
+   3          #include "motor.h"
+   4          
+   5          /* ================= 通用参数 ================= */
+   6          #define SPEED_DEF       60     /* 手动模式默认速度 */
+   7          #define TURN_PCT        60     /* 原地转弯速度比例 */
+   8          #define TRIM_R          160    /* 右轮补偿：实测值（右轮弱 60%），换电机后要重调 */
+   9          #define LINK_TIMEOUT_MS 0      /* 断线保护，0=关 */
+  10          #define ACK_ENABLE      1      /* 回 OK */
+  11          #define DEBUG_ECHO      1      /* 回显收到的字节 */
+  12          
+  13          /* ================= 循迹参数（按实际调） ================= */
+  14          #define LINE_ACTIVE_LOW 0      /* 0=压黑线输出高电平（本车实测）；1=输出低 */
+  15          #define TRACK_SPEED     30     /* 进入自动模式的基础速度（跑出去就调小） */
+  16          #define TRACK_KP        10     /* 比例系数 /10 */
+  17          #define TRACK_KD        4      /* 微分系数 /10 */
+  18          #define TRACK_KI        0      /* 积分系数 /10；0=关闭（回到纯 PD） */
+  19          #define TRACK_MAX       55     /* 转向量限幅 */
+  20          #define CORNER_ON       5      /* 同时压线 >=5 个，判定为直角弯 */
+  21          #define SEARCH_SPEED    25     /* 丢线后原地找线的速度 */
+  22          #define BEEP_MS         500    /* 声光提示持续时间(ms) */
+  23          
+  24          /* 声光：低电平有效（有源蜂鸣器、LED 阳极接 VCC） */
+  25          sbit BUZZER = P1^6;
+  26          sbit LED    = P1^7;
+  27          
+  28          /* ================= 状态 ================= */
+  29          static unsigned char speed = SPEED_DEF;
+  30          static unsigned char trim_r = TRIM_R;   /* 右轮补偿，可在手机上用 + / - 调 */
+  31          static char dir = 'S';
+  32          static unsigned char mode = 0;     /* 0=手动, 1=自动循迹 */
+  33          static unsigned int  idle_ms = 0;
+  34          
+  35          static signed char   last_err = 0;
+  36          static signed int    integ = 0;       /* 积分累计，消除稳态偏差 */
+  37          static unsigned char lost_cnt = 0;
+  38          static unsigned int  arm_ms = 0;      /* 发 A 后等待速度的窗口 */
+  39          static unsigned int  beep_ms = 0;
+  40          
+  41          /* 单轮调试 */
+  42          static unsigned char dbg = 0;        /* 1=调试模式 */
+  43          static signed char   wl = 0, wr = 0; /* 左右轮直接目标（不走补偿） */
+  44          
+  45          /* 编码器：INT0(P3.2)=左轮A相，INT1(P3.3)=右轮A相，下降沿计数 */
+  46          volatile unsigned int enc_l = 0, enc_r = 0;
+  47          static unsigned int last_l = 0, last_r = 0;
+  48          static signed char  cmd_l = 0, cmd_r = 0;   /* 当前下发的左右目标，供闭环比对 */
+  49          static unsigned char t100 = 0;
+  50          
+  51          /* ---------------- 工具 ---------------- */
+  52          static void send_u8(unsigned char v)
+  53          {
+  54   1          UART_SendByte('0' + v / 100);
+C51 COMPILER V9.54   MAIN                                                                  11/01/2026 21:19:06 PAGE 2   
+
+  55   1          UART_SendByte('0' + (v / 10) % 10);
+  56   1          UART_SendByte('0' + v % 10);
+  57   1      }
+  58          
+  59          static void send_hex(unsigned char v)
+  60          {
+  61   1          unsigned char h = (unsigned char)(v >> 4);
+  62   1          UART_SendByte(h < 10 ? ('0' + h) : ('A' + h - 10));
+  63   1          h = (unsigned char)(v & 0x0F);
+  64   1          UART_SendByte(h < 10 ? ('0' + h) : ('A' + h - 10));
+  65   1      }
+  66          
+  67          static void send_u16(unsigned int v)
+  68          {
+  69   1          if (v >= 10000) UART_SendByte((unsigned char)('0' + v / 10000));
+  70   1          if (v >= 1000)  UART_SendByte((unsigned char)('0' + (v / 1000) % 10));
+  71   1          if (v >= 100)   UART_SendByte((unsigned char)('0' + (v / 100) % 10));
+  72   1          if (v >= 10)    UART_SendByte((unsigned char)('0' + (v / 10) % 10));
+  73   1          UART_SendByte((unsigned char)('0' + v % 10));
+  74   1      }
+  75          
+  76          static void beep(unsigned int ms)
+  77          {
+  78   1          beep_ms = ms;
+  79   1      }
+  80          
+  81          /* 右轮速度补偿：把目标值按 trim_r 百分比缩放 */
+  82          static signed char trim_wheel(signed char v)
+  83          {
+  84   1          signed int t = (signed int)v * trim_r / 100;
+  85   1          if (t >  100) t =  100;
+  86   1          if (t < -100) t = -100;
+  87   1          return (signed char)t;
+  88   1      }
+  89          
+  90          /* 补偿允许的最高速度：保证补偿后右轮不超过 100%（speed*T/100 <= 100） */
+  91          static unsigned char max_speed(void)
+  92          {
+  93   1          unsigned char m = (unsigned char)(10000 / trim_r);
+  94   1          if (m > 100) m = 100;
+  95   1          return m;
+  96   1      }
+  97          
+  98          /* 实际生效速度 = min(设定速度, 上限) */
+  99          static unsigned char eff_speed(void)
+ 100          {
+ 101   1          unsigned char m = max_speed();
+ 102   1          return (speed > m) ? m : speed;
+ 103   1      }
+ 104          
+ 105          /* ---------------- 编码器闭环 ---------------- */
+ 106          void INT0_ISR(void) interrupt 0 { enc_l++; }
+ 107          void INT1_ISR(void) interrupt 2 { enc_r++; }
+ 108          
+ 109          static void enc_init(void)
+ 110          {
+ 111   1          IT0 = 1; IT1 = 1;          /* 下降沿触发 */
+ 112   1          EX0 = 1; EX1 = 1;
+ 113   1      }
+ 114          
+ 115          static unsigned int enc_take(volatile unsigned int *p)
+ 116          {
+C51 COMPILER V9.54   MAIN                                                                  11/01/2026 21:19:06 PAGE 3   
+
+ 117   1          unsigned int v;
+ 118   1          EA = 0;
+ 119   1          v = *p;
+ 120   1          *p = 0;
+ 121   1          EA = 1;
+ 122   1          return v;
+ 123   1      }
+ 124          
+ 125          /* 每 100ms：比较两轮实际转速，哪边相对慢就把补偿往哪边调 */
+ 126          static void sync_step(void)
+ 127          {
+ 128   1          unsigned int l = enc_take(&enc_l);
+ 129   1          unsigned int r = enc_take(&enc_r);
+ 130   1          unsigned long a, b;
+ 131   1      
+ 132   1          last_l = l;
+ 133   1          last_r = r;
+ 134   1      
+ 135   1          if (cmd_l == 0 || cmd_r == 0) return;   /* 有一轮不走，不比较 */
+ 136   1          if (l + r < 8) return;                  /* 太慢，脉冲太少不可靠 */
+ 137   1      
+ 138   1          /* 交叉相乘，避免除法： r/l 与 cmd_l/cmd_r 比较 */
+ 139   1          a = (unsigned long)r * (unsigned int)(cmd_l > 0 ? cmd_l : -cmd_l);
+ 140   1          b = (unsigned long)l * (unsigned int)(cmd_r > 0 ? cmd_r : -cmd_r);
+ 141   1      
+ 142   1          if (b > a && (b - a) > b / 50) {        /* 右轮相对慢 -> 补偿加大 */
+ 143   2              if (trim_r < 210) trim_r++;
+ 144   2          } else if (a > b && (a - b) > a / 50) { /* 右轮相对快 -> 补偿减小 */
+ 145   2              if (trim_r > 80) trim_r--;
+ 146   2          }
+ 147   1      }
+ 148          
+ 149          /* 声光节拍，20ms 一次 */
+ 150          static void beep_tick(void)
+ 151          {
+ 152   1          if (beep_ms) {
+ 153   2              if (beep_ms > 20) beep_ms -= 20;
+ 154   2              else beep_ms = 0;
+ 155   2          }
+ 156   1          if (beep_ms) { BUZZER = 0; LED = 0; }
+ 157   1          else         { BUZZER = 1; LED = 1; }
+ 158   1      }
+ 159          
+ 160          /* ---------------- 手动模式 ---------------- */
+ 161          static void apply_dir(void)
+ 162          {
+ 163   1          unsigned char sv = eff_speed();
+ 164   1          signed char s = (signed char)sv;
+ 165   1          signed char tl = 0, tr = 0;
+ 166   1          signed char t  = (signed char)(s * TURN_PCT / 100);
+ 167   1      
+ 168   1          switch (dir) {
+ 169   2          case 'F': tl =  s; tr =  s; break;
+ 170   2          case 'B': tl = -s; tr = -s; break;
+ 171   2          case 'L': tl = -t; tr =  t; break;
+ 172   2          case 'R': tl =  t; tr = -t; break;
+ 173   2          default:  tl = 0;  tr = 0;  dir = 'S'; break;
+ 174   2          }
+ 175   1          tr = trim_wheel(tr);
+ 176   1          cmd_l = tl;
+ 177   1          cmd_r = tr;
+ 178   1          Motor_SetTarget(tl, tr);
+C51 COMPILER V9.54   MAIN                                                                  11/01/2026 21:19:06 PAGE 4   
+
+ 179   1      }
+ 180          
+ 181          /* ---------------- 自动循迹 ---------------- */
+ 182          static void track_step(void)
+ 183          {
+ 184   1          unsigned char on, i;
+ 185   1          signed char sum = 0, cnt = 0, err, steer, d;
+ 186   1          signed int l, r;
+ 187   1      
+ 188   1      #if LINE_ACTIVE_LOW
+                  on = (unsigned char)(~P2) & 0x7F;      /* 1 = 该探头压到黑线 */
+              #else
+ 191   1          on = (unsigned char)(P2 & 0x7F);
+ 192   1      #endif
+ 193   1      
+ 194   1          for (i = 0; i < 7; i++) {
+ 195   2              if (on & (1 << i)) {
+ 196   3                  sum += (signed char)(i - 3);   /* 权重 -3 ~ +3 */
+ 197   3                  cnt++;
+ 198   3              }
+ 199   2          }
+ 200   1      
+ 201   1          if (cnt == 0) {                         /* 丢线：多半是到直角弯了 */
+ 202   2              if (lost_cnt < 200) lost_cnt++;
+ 203   2              if (lost_cnt >= 5) {                /* 100ms 后开始原地找线 */
+ 204   3                  signed char s = (last_err >= 0) ? SEARCH_SPEED : -SEARCH_SPEED;
+ 205   3                  Motor_SetTarget(s, (signed char)(-s));
+ 206   3                  cmd_l = s;
+ 207   3                  cmd_r = (signed char)(-s);
+ 208   3                  if (lost_cnt == 5) beep(BEEP_MS);   /* 直角弯声光提示 */
+ 209   3              }
+ 210   2              if (lost_cnt >= 80) {               /* 1.6s 还找不到，停车保护 */
+ 211   3                  Motor_SetTarget(0, 0);
+ 212   3                  cmd_l = 0;
+ 213   3                  cmd_r = 0;
+ 214   3              }
+ 215   2              return;
+ 216   2          }
+ 217   1          lost_cnt = 0;
+ 218   1      
+ 219   1          err = (signed char)(sum * 10 / cnt);    /* -30 ~ +30 */
+ 220   1          d   = (signed char)(err - last_err);
+ 221   1          last_err = err;
+ 222   1      
+ 223   1          integ += err;                           /* 积分：自动补两轮差异 */
+ 224   1          if (integ >  100) integ =  100;
+ 225   1          if (integ < -100) integ = -100;
+ 226   1      
+ 227   1          steer = (signed char)(err * TRACK_KP / 10 + d * TRACK_KD / 10
+ 228   1                                + integ * TRACK_KI / 10);
+ 229   1          if (steer >  TRACK_MAX) steer =  TRACK_MAX;
+ 230   1          if (steer < -TRACK_MAX) steer = -TRACK_MAX;
+ 231   1      
+ 232   1          l = (signed int)eff_speed() - steer;
+ 233   1          r = (signed int)eff_speed() + steer;
+ 234   1          r = r * trim_r / 100;                   /* 右轮补偿 */
+ 235   1          if (l >  100) l =  100;
+ 236   1          if (l < -100) l = -100;
+ 237   1          if (r >  100) r =  100;
+ 238   1          if (r < -100) r = -100;
+ 239   1          cmd_l = (signed char)l;
+ 240   1          cmd_r = (signed char)r;
+C51 COMPILER V9.54   MAIN                                                                  11/01/2026 21:19:06 PAGE 5   
+
+ 241   1          Motor_SetTarget((signed char)l, (signed char)r);
+ 242   1      
+ 243   1          if (cnt >= CORNER_ON) beep(BEEP_MS);    /* 直角弯：压线很宽 */
+ 244   1      }
+ 245          
+ 246          /* ---------------- 指令 ---------------- */
+ 247          static void report(void)
+ 248          {
+ 249   1          UART_SendString("M=");
+ 250   1          UART_SendByte(dbg ? 'D' : (mode ? 'A' : 'M'));
+ 251   1          UART_SendString(" D=");
+ 252   1          UART_SendByte(dir);
+ 253   1          UART_SendString(" S=");
+ 254   1          send_u8(speed);
+ 255   1          UART_SendString(" T=");
+ 256   1          send_u8(trim_r);
+ 257   1          UART_SendString(" X=");
+ 258   1          send_u8(max_speed());
+ 259   1          UART_SendString(" L=");
+ 260   1      #if LINE_ACTIVE_LOW
+                  send_hex((unsigned char)(~P2) & 0x7F);
+              #else
+ 263   1          send_hex((unsigned char)(P2) & 0x7F);
+ 264   1      #endif
+ 265   1          UART_SendString("\r\n");
+ 266   1      }
+ 267          
+ 268          static unsigned char handle(unsigned char c)
+ 269          {
+ 270   1          idle_ms = 0;
+ 271   1      
+ 272   1          /* ---------- 单轮调试模式 ---------- */
+ 273   1          if (dbg) {
+ 274   2              switch (c) {
+ 275   3              case '1': wl =  (signed char)speed; break;   /* 左轮正转 */
+ 276   3              case '2': wl = -(signed char)speed; break;   /* 左轮反转 */
+ 277   3              case '3': wl = 0; break;                     /* 左轮停   */
+ 278   3              case '4': wr =  (signed char)speed; break;   /* 右轮正转 */
+ 279   3              case '5': wr = -(signed char)speed; break;   /* 右轮反转 */
+ 280   3              case '6': wr = 0; break;                     /* 右轮停   */
+ 281   3              case '7': wl =  (signed char)speed; wr = (signed char)speed; break;  /* 都正转 */
+ 282   3              case '8': wl = 0; wr = 0; break;             /* 都停 */
+ 283   3              case '+': if (speed < 90) speed += 5; /* 测试速度 +5 */
+ 284   3                        if (wl > 0) wl = (signed char)speed; else if (wl < 0) wl = -(signed char)speed;
+ 285   3                        if (wr > 0) wr = (signed char)speed; else if (wr < 0) wr = -(signed char)speed;
+ 286   3                        break;
+ 287   3              case '-': if (speed > 10) speed -= 5;
+ 288   3                        if (wl > 0) wl = (signed char)speed; else if (wl < 0) wl = -(signed char)speed;
+ 289   3                        if (wr > 0) wr = (signed char)speed; else if (wr < 0) wr = -(signed char)speed;
+ 290   3                        break;
+ 291   3              case 'D': case 'd':
+ 292   3                  dbg = 0; wl = 0; wr = 0;
+ 293   3                  Motor_SetRaw(0);
+ 294   3                  Motor_Stop();
+ 295   3                  UART_SendString("DEBUG OFF\r\n");
+ 296   3                  return 0;
+ 297   3              default:
+ 298   3                  return 0;
+ 299   3              }
+ 300   2              cmd_l = wl;
+ 301   2              cmd_r = wr;
+ 302   2              Motor_SetTarget(wl, wr);
+C51 COMPILER V9.54   MAIN                                                                  11/01/2026 21:19:06 PAGE 6   
+
+ 303   2              return 1;
+ 304   2          }
+ 305   1      
+ 306   1          if (c >= '1' && c <= '9') {
+ 307   2              speed = (unsigned char)((c - '0') * 10);
+ 308   2              if (mode) arm_ms = 0;              /* 发 A2：收到数字立即按新速度起步 */
+ 309   2              else      apply_dir();
+ 310   2              return 1;
+ 311   2          }
+ 312   1      
+ 313   1          switch (c) {
+ 314   2          case 'F': case 'f':
+ 315   2          case 'B': case 'b':
+ 316   2          case 'L': case 'l':
+ 317   2          case 'R': case 'r':
+ 318   2              if (mode != 0) return 0;
+ 319   2              dir = (char)(c & 0xDF);
+ 320   2              apply_dir();
+ 321   2              return 1;
+ 322   2      
+ 323   2          case 'S': case 's':
+ 324   2          case ' ': case 'X': case 'x':
+ 325   2              arm_ms = 0;
+ 326   2              mode = 0;
+ 327   2              dir = 'S';
+ 328   2              Motor_Stop();
+ 329   2              return 1;
+ 330   2      
+ 331   2          case 'A': case 'a':                 /* 切自动循迹：A 或 A2（2=20%） */
+ 332   2              mode = 1;
+ 333   2              speed = TRACK_SPEED;
+ 334   2              last_err = 0;
+ 335   2              integ = 0;
+ 336   2              lost_cnt = 0;
+ 337   2              arm_ms = 400;                   /* 等 0.4 秒，看后面有没有数字 */
+ 338   2              Motor_Stop();
+ 339   2              UART_SendString("AUTO\r\n");
+ 340   2              return 0;
+ 341   2      
+ 342   2          case 'D': case 'd':                 /* 单轮调试模式 */
+ 343   2              dbg = 1;
+ 344   2              mode = 0;
+ 345   2              wl = 0;
+ 346   2              wr = 0;
+ 347   2              Motor_SetRaw(1);                /* 调试时关闭死区补偿 */
+ 348   2              Motor_Stop();
+ 349   2              UART_SendString("DEBUG ON\r\n");
+ 350   2              return 0;
+ 351   2      
+ 352   2          case 'M': case 'm':                 /* 切手动 */
+ 353   2              arm_ms = 0;
+ 354   2              mode = 0;
+ 355   2              dir = 'S';
+ 356   2              Motor_Stop();
+ 357   2              UART_SendString("MANUAL\r\n");
+ 358   2              return 0;
+ 359   2      
+ 360   2          case '?':
+ 361   2              report();
+ 362   2              return 0;
+ 363   2      
+ 364   2          case 'E': case 'e':                 /* 读上一周期两轮脉冲数 */
+C51 COMPILER V9.54   MAIN                                                                  11/01/2026 21:19:06 PAGE 7   
+
+ 365   2              UART_SendString("E=");
+ 366   2              send_u16(last_l);
+ 367   2              UART_SendString(",");
+ 368   2              send_u16(last_r);
+ 369   2              UART_SendString(" T=");
+ 370   2              send_u8(trim_r);
+ 371   2              UART_SendString("\r\n");
+ 372   2              return 0;
+ 373   2      
+ 374   2          case '+':                           /* 右轮加速 2% */
+ 375   2              if (trim_r < 180) trim_r += 2;
+ 376   2              if (mode == 0) apply_dir();
+ 377   2              return 1;
+ 378   2      
+ 379   2          case '-':                           /* 右轮减速 2% */
+ 380   2              if (trim_r > 50) trim_r -= 2;
+ 381   2              if (mode == 0) apply_dir();
+ 382   2              return 1;
+ 383   2      
+ 384   2          default:
+ 385   2              return 0;
+ 386   2          }
+ 387   1      }
+ 388          
+ 389          void main(void)
+ 390          {
+ 391   1          unsigned char c;
+ 392   1      
+ 393   1          UART_Init();
+ 394   1          Motor_Init();
+ 395   1          enc_init();
+ 396   1          BUZZER = 1;
+ 397   1          LED = 1;
+ 398   1          UART_SendString("CAR READY\r\n");
+ 399   1      
+ 400   1          while (1) {
+ 401   2              while (UART_GetChar(&c)) {
+ 402   3      #if DEBUG_ECHO
+ 403   3                  UART_SendByte(c);
+ 404   3      #endif
+ 405   3                  if (handle(c)) {
+ 406   4      #if ACK_ENABLE
+ 407   4                      UART_SendString("OK\r\n");
+ 408   4      #endif
+ 409   4                  }
+ 410   3              }
+ 411   2      
+ 412   2              if (flag_20ms) {
+ 413   3                  flag_20ms = 0;
+ 414   3      
+ 415   3                  if (mode) {
+ 416   4                      if (arm_ms) {               /* 等速度窗口，先不动 */
+ 417   5                          if (arm_ms > 20) arm_ms -= 20;
+ 418   5                          else arm_ms = 0;
+ 419   5                      } else {
+ 420   5                          track_step();           /* 自动循迹 */
+ 421   5                      }
+ 422   4                  }
+ 423   3                  Motor_Tick();               /* 速度斜坡 */
+ 424   3                  beep_tick();                /* 声光 */
+ 425   3      
+ 426   3                  if (++t100 >= 5) {          /* 100ms：编码器闭环 */
+C51 COMPILER V9.54   MAIN                                                                  11/01/2026 21:19:06 PAGE 8   
+
+ 427   4                      t100 = 0;
+ 428   4                      sync_step();
+ 429   4                  }
+ 430   3      
+ 431   3      #if LINK_TIMEOUT_MS > 0
+                          if (mode == 0 && dir != 'S') {
+                              if (idle_ms < 60000) idle_ms += 20;
+                              if (idle_ms >= LINK_TIMEOUT_MS) {
+                                  dir = 'S';
+                                  Motor_Stop();
+                              }
+                          }
+              #endif
+ 440   3              }
+ 441   2          }
+ 442   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =   2163    ----
+   CONSTANT SIZE    =     87    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     28      22
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

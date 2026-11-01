@@ -1,0 +1,5 @@
+".\Objects\main.obj",
+".\Objects\motor.obj",
+".\Objects\uart.obj" 
+TO ".\Objects\蓝牙遥控小车" 
+PRINT(".\Listings\蓝牙遥控小车.m51") RAMSIZE(256) 

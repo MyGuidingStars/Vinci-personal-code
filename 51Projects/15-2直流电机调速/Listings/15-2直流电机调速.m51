@@ -1,0 +1,120 @@
+BL51 BANKED LINKER/LOCATER V6.22                                                        11/01/2026  21:20:19  PAGE 1
+
+
+BL51 BANKED LINKER/LOCATER V6.22, INVOKED BY:
+G:\KEIL5\C51\BIN\BL51.EXE .\Objects\15-2直流电机调速.obj, .\Objects\Timer0.obj TO .\Objects\15-2直流电机调速 PRINT (.\Li
+>> stings\15-2直流电机调速.m51) RAMSIZE (256)
+
+
+MEMORY MODEL: SMALL
+
+
+INPUT MODULES INCLUDED:
+  .\Objects\15-2直流电机调速.obj (15_2____________)
+  .\Objects\Timer0.obj (TIMER0)
+  G:\KEIL5\C51\LIB\C51S.LIB (?C_STARTUP)
+
+
+LINK MAP OF MODULE:  .\Objects\15-2直流电机调速 (15_2____________)
+
+
+            TYPE    BASE      LENGTH    RELOCATION   SEGMENT NAME
+            -----------------------------------------------------
+
+            * * * * * * *   D A T A   M E M O R Y   * * * * * * *
+            REG     0000H     0008H     ABSOLUTE     "REG BANK 0"
+            DATA    0008H     0002H     UNIT         ?DT?15_2____________
+            IDATA   000AH     0001H     UNIT         ?STACK
+
+            * * * * * * *   C O D E   M E M O R Y   * * * * * * *
+            CODE    0000H     0003H     ABSOLUTE     
+            CODE    0003H     0008H     UNIT         ?PR?MAIN?15_2____________
+            CODE    000BH     0003H     ABSOLUTE     
+            CODE    000EH     002BH     UNIT         ?PR?TIMER0_ROUTINE?15_2____________
+            CODE    0039H     0017H     UNIT         ?PR?TIMER0INIT?TIMER0
+            CODE    0050H     000CH     UNIT         ?C_C51STARTUP
+
+
+
+OVERLAY MAP OF MODULE:   .\Objects\15-2直流电机调速 (15_2____________)
+
+
+SEGMENT
+  +--> CALLED SEGMENT
+---------------------
+?C_C51STARTUP
+  +--> ?PR?MAIN?15_2____________
+
+?PR?MAIN?15_2____________
+  +--> ?PR?TIMER0INIT?TIMER0
+
+
+
+SYMBOL TABLE OF MODULE:  .\Objects\15-2直流电机调速 (15_2____________)
+
+  VALUE           TYPE          NAME
+  ----------------------------------
+
+  -------         MODULE        15_2____________
+  C:0000H         SYMBOL        _ICE_DUMMY_
+  C:000EH         PUBLIC        Timer0_Routine
+  D:0008H         PUBLIC        counter
+BL51 BANKED LINKER/LOCATER V6.22                                                      11/01/2026  21:20:19  PAGE 2
+
+
+  B:0090H.0       PUBLIC        P1_0
+  C:0003H         PUBLIC        main
+  D:008CH         PUBLIC        TH0
+  D:008AH         PUBLIC        TL0
+  D:0009H         PUBLIC        compare
+  -------         PROC          TIMER0_ROUTINE
+  C:000EH         LINE#         5
+  C:0014H         LINE#         6
+  C:0017H         LINE#         7
+  C:001AH         LINE#         8
+  C:001CH         LINE#         9
+  C:0025H         LINE#         10
+  C:002CH         LINE#         11
+  C:002EH         LINE#         12
+  C:0030H         LINE#         13
+  C:0030H         LINE#         14
+  C:0032H         LINE#         15
+  C:0032H         LINE#         16
+  -------         ENDPROC       TIMER0_ROUTINE
+  -------         PROC          MAIN
+  C:0003H         LINE#         18
+  C:0003H         LINE#         19
+  C:0006H         LINE#         20
+  C:0009H         LINE#         21
+  C:0009H         LINE#         23
+  -------         ENDPROC       MAIN
+  -------         ENDMOD        15_2____________
+
+  -------         MODULE        TIMER0
+  C:0000H         SYMBOL        _ICE_DUMMY_
+  B:00A8H.7       PUBLIC        EA
+  D:0089H         PUBLIC        TMOD
+  B:00A8H.1       PUBLIC        ET0
+  B:0088H.5       PUBLIC        TF0
+  C:0039H         PUBLIC        Timer0Init
+  D:008CH         PUBLIC        TH0
+  D:008AH         PUBLIC        TL0
+  B:00B8H.1       PUBLIC        PT0
+  B:0088H.4       PUBLIC        TR0
+  -------         PROC          TIMER0INIT
+  C:0039H         LINE#         2
+  C:0039H         LINE#         5
+  C:003CH         LINE#         6
+  C:003FH         LINE#         7
+  C:0042H         LINE#         8
+  C:0045H         LINE#         9
+  C:0047H         LINE#         10
+  C:0049H         LINE#         11
+  C:004BH         LINE#         12
+  C:004DH         LINE#         13
+  C:004FH         LINE#         14
+  -------         ENDPROC       TIMER0INIT
+  -------         ENDMOD        TIMER0
+
+Program Size: data=11.0 xdata=0 code=92
+LINK/LOCATE RUN COMPLETE.  0 WARNING(S),  0 ERROR(S)

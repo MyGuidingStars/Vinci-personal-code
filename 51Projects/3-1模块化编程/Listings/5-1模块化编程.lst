@@ -1,0 +1,37 @@
+C51 COMPILER V9.54   5_1__________                                                         10/18/2026 20:56:03 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE 5_1__________
+OBJECT MODULE PLACED IN .\Objects\5-1模块化编程.obj
+COMPILER INVOKED BY: G:\Keil5\C51\BIN\C51.EXE 5-1模块化编程.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listin
+                    -gs\5-1模块化编程.lst) OBJECT(.\Objects\5-1模块化编程.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          #include "Delay.h"
+   3          int main () {
+   4   1              while (1) {
+   5   2                      P2_0=1;
+   6   2                      delay(500);
+   7   2                      P2_0=0;
+   8   2                      delay(500);
+   9   2                      
+  10   2                      
+  11   2              }
+  12   1      }
+  13          
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     20    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

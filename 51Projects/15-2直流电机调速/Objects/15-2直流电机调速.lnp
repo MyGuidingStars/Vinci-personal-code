@@ -1,0 +1,4 @@
+".\Objects\15-2直流电机调速.obj",
+".\Objects\Timer0.obj" 
+TO ".\Objects\15-2直流电机调速" 
+PRINT(".\Listings\15-2直流电机调速.m51") RAMSIZE(256) 

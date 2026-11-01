@@ -1,0 +1,89 @@
+C51 COMPILER V9.54   UART                                                                  10/29/2026 20:58:59 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE UART
+OBJECT MODULE PLACED IN .\Objects\uart.obj
+COMPILER INVOKED BY: G:\Keil5\C51\BIN\C51.EXE uart.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\uart.l
+                    -st) OBJECT(.\Objects\uart.obj)
+
+line level    source
+
+   1          #include <reg52.h>
+   2          #include "uart.h"
+   3          
+   4          #define RXSIZE 32
+   5          
+   6          static unsigned char idata rxbuf[RXSIZE];   /* 环形缓冲，放内部 RAM 高 128B */
+   7          static volatile unsigned char rx_head = 0;
+   8          static volatile unsigned char rx_tail = 0;
+   9          static volatile unsigned char tx_done = 1;  /* 发送完成标志，由中断置位 */
+  10          
+  11          /* 9600 @ 11.0592MHz，定时器1 方式2 */
+  12          void UART_Init(void)
+  13          {
+  14   1          SCON = 0x50;                 /* 方式1、8位、REN=1 允许接收 */
+  15   1          TMOD &= 0x0F;                /* 只改高4位，保留定时器0 的设置 */
+  16   1          TMOD |= 0x20;                /* 定时器1 方式2，自动重装 */
+  17   1          TH1 = 0xFD;
+  18   1          TL1 = 0xFD;
+  19   1          TR1 = 1;
+  20   1          ES  = 1;                     /* 串口中断允许 */
+  21   1          EA  = 1;                     /* 总中断允许 */
+  22   1      }
+  23          
+  24          /* 中断号 4：接收和发送共用，必须两个都判断 */
+  25          void UART_ISR(void) interrupt 4
+  26          {
+  27   1          unsigned char c, next;
+  28   1      
+  29   1          if (RI) {
+  30   2              RI = 0;                  /* 硬件置位，软件清零 */
+  31   2              c = SBUF;                /* 立刻读走，腾空 1 字节缓冲 */
+  32   2              next = rx_head + 1;
+  33   2              if (next >= RXSIZE) next = 0;
+  34   2              if (next != rx_tail) {   /* 没满才存 */
+  35   3                  rxbuf[rx_head] = c;
+  36   3                  rx_head = next;
+  37   3              }
+  38   2          }
+  39   1          if (TI) {                    /* 发送完成 */
+  40   2              TI = 0;
+  41   2              tx_done = 1;
+  42   2          }
+  43   1      }
+  44          
+  45          unsigned char UART_GetChar(unsigned char *c)
+  46          {
+  47   1          if (rx_head == rx_tail) return 0;
+  48   1          *c = rxbuf[rx_tail];
+  49   1          if (++rx_tail >= RXSIZE) rx_tail = 0;
+  50   1          return 1;
+  51   1      }
+  52          
+  53          void UART_SendByte(unsigned char b)
+  54          {
+C51 COMPILER V9.54   UART                                                                  10/29/2026 20:58:59 PAGE 2   
+
+  55   1          tx_done = 0;
+  56   1          SBUF = b;
+  57   1          while (!tx_done);            /* 等中断里置位，别自己清 TI */
+  58   1      }
+  59          
+  60          void UART_SendString(const char *s)
+  61          {
+  62   1          while (*s) UART_SendByte((unsigned char)(*s++));
+  63   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    172    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =      3       3
+   IDATA SIZE       =     32    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,4 @@
+".\Objects\5-1计时器中断.obj",
+".\Objects\Timer0.obj" 
+TO ".\Objects\5-1计时器中断" 
+PRINT(".\Listings\5-1计时器中断.m51") RAMSIZE(256) 

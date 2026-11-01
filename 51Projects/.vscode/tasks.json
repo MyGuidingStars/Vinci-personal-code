@@ -1,0 +1,133 @@
+{
+    "version": "2.0.0",
+    "tasks": [
+        {
+            "label": "① 编译当前文件所在工程",
+            "detail": "自动从当前编辑的文件向上查找 .uvproj，最常用",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}\\.vscode\\build.ps1",
+                "-SearchFrom", "${fileDirname}"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": {
+                "owner": "keil-c51",
+                "fileLocation": ["auto"],
+                "pattern": {
+                    "regexp": "^(.*)\\((\\d+)\\):\\s*(warning|error|fatal error)\\s+(\\w+\\d*):\\s*(.*)$",
+                    "file": 1, "line": 2, "severity": 3, "code": 4, "message": 5
+                }
+            },
+            "presentation": { "reveal": "always", "panel": "shared", "clear": true },
+            "group": { "kind": "build", "isDefault": true }
+        },
+        {
+            "label": "② 全部重新编译（Rebuild）",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}\\.vscode\\build.ps1",
+                "-SearchFrom", "${fileDirname}",
+                "-Mode", "rebuild"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": {
+                "owner": "keil-c51",
+                "fileLocation": ["auto"],
+                "pattern": {
+                    "regexp": "^(.*)\\((\\d+)\\):\\s*(warning|error|fatal error)\\s+(\\w+\\d*):\\s*(.*)$",
+                    "file": 1, "line": 2, "severity": 3, "code": 4, "message": 5
+                }
+            },
+            "presentation": { "reveal": "always", "panel": "shared", "clear": true }
+        },
+        {
+            "label": "③ 从列表选工程编译",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}\\.vscode\\build.ps1",
+                "-Project", "${input:projFile}"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": {
+                "owner": "keil-c51",
+                "fileLocation": ["auto"],
+                "pattern": {
+                    "regexp": "^(.*)\\((\\d+)\\):\\s*(warning|error|fatal error)\\s+(\\w+\\d*):\\s*(.*)$",
+                    "file": 1, "line": 2, "severity": 3, "code": 4, "message": 5
+                }
+            }
+        },
+        {
+            "label": "④ 清理编译产物（Clean）",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}\\.vscode\\build.ps1",
+                "-SearchFrom", "${fileDirname}",
+                "-Mode", "clean"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "⑤ 新建实验工程（自动生成 .uvproj）",
+            "detail": "输入实验名，自动建目录 + 源文件 + Keil 工程，并编译验证",
+            "type": "shell",
+            "command": "powershell",
+            "args": [
+                "-NoProfile", "-ExecutionPolicy", "Bypass",
+                "-File", "${workspaceFolder}\\.vscode\\new-project.ps1",
+                "-Name", "${input:newProjectName}"
+            ],
+            "options": { "cwd": "${workspaceFolder}" },
+            "problemMatcher": []
+        },
+        {
+            "label": "打开 STC-ISP 下载程序",
+            "type": "process",
+            "command": "C:\\Users\\lenovo\\Desktop\\stc-isp.exe",
+            "problemMatcher": []
+        },
+        {
+            "label": "打开 STC-ISP（G盘教程资料版）",
+            "type": "process",
+            "command": "G:\\51单片机入门教程资料\\编程软件\\stc-isp\\stc-isp.exe",
+            "problemMatcher": []
+        },
+        {
+            "label": "查看编译日志 build.log",
+            "type": "shell",
+            "command": "code",
+            "args": ["${workspaceFolder}\\build.log"],
+            "problemMatcher": []
+        }
+    ],
+    "inputs": [
+        {
+            "id": "projFile",
+            "type": "pickString",
+            "description": "选择要编译的 Keil 工程",
+            "options": [
+                "${workspaceFolder}\\2-2LED闪烁\\2-2LED闪烁.uvproj",
+                "${workspaceFolder}\\2-3流水LEDPlus\\2-3流水LEDPlus.uvproj",
+                "${workspaceFolder}\\5-1模块化编程\\5-1模块化编程.uvproj",
+                "${workspaceFolder}\\5-1计时器中断\\5-1计时器中断.uvproj",
+                "${workspaceFolder}\\独立按键\\独立按键.uvproj",
+                "${workspaceFolder}\\按键消抖\\按键消抖.uvproj"
+            ]
+        },
+        {
+            "id": "newProjectName",
+            "type": "promptString",
+            "description": "新实验工程名称（例：5-2定时器中断）",
+            "default": "新实验"
+        }
+    ]
+}

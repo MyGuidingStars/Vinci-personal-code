@@ -1,0 +1,4 @@
+".\Objects\5-1模块化编程.obj",
+".\Objects\Delay.obj" 
+TO ".\Objects\5-1模块化编程" 
+PRINT(".\Listings\5-1模块化编程.m51") RAMSIZE(256) 

@@ -1,0 +1,39 @@
+{
+    "version": 4,
+    "configurations": [
+        {
+            "name": "C51-STC89C52RC",
+            "includePath": [
+                "${workspaceFolder}/**",
+                "G:/Keil5/C51/INC",
+                "G:/Keil5/C51/INC/Atmel"
+            ],
+            "defines": [
+                "__C51__",
+                "__CX51__",
+                "__AT89C52__",
+
+                "sfr=unsigned char",
+                "sbit=unsigned char",
+                "bit=unsigned char",
+                "data=",
+                "idata=",
+                "xdata=",
+                "pdata=",
+                "code=",
+                "reentrant="
+            ],
+            "cStandard": "c89",
+            "cppStandard": "c++98",
+            "intelliSenseMode": "windows-gcc-x86",
+            "browse": {
+                "path": [
+                    "${workspaceFolder}",
+                    "G:/Keil5/C51/INC",
+                    "G:/Keil5/C51/INC/Atmel"
+                ],
+                "limitSymbolsToIncludedHeaders": true
+            }
+        }
+    ]
+}

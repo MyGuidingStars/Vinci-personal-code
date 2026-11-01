@@ -1,0 +1,3 @@
+".\Objects\9-1PWM.obj" 
+TO ".\Objects\9-1PWM" 
+PRINT(".\Listings\9-1PWM.m51") RAMSIZE(256) 

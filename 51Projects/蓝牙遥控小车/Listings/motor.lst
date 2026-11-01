@@ -1,0 +1,174 @@
+C51 COMPILER V9.54   MOTOR                                                                 11/01/2026 21:19:06 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE MOTOR
+OBJECT MODULE PLACED IN .\Objects\motor.obj
+COMPILER INVOKED BY: G:\Keil5\C51\BIN\C51.EXE motor.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\motor
+                    -.lst) OBJECT(.\Objects\motor.obj)
+
+line level    source
+
+   1          #include <reg52.h>
+   2          #include "motor.h"
+   3          
+   4          /* ---------------- 引脚（按你的板子改这里） ----------------
+   5             P1.0 ENA  P1.1 IN1  P1.2 IN2   -> 左电机
+   6             P1.3 ENB  P1.4 IN3  P1.5 IN4   -> 右电机
+   7             注意：普中板 P1.5 常接蜂鸣器，若冲突把 ENB 改到 P2.0，
+   8                  同时把下面的 sbit ENB = P1^5; 改成 P2^0;
+   9          ---------------------------------------------------------- */
+  10          sbit ENA = P1^0;
+  11          sbit IN1 = P1^1;
+  12          sbit IN2 = P1^2;
+  13          sbit ENB = P1^3;
+  14          sbit IN3 = P1^4;
+  15          sbit IN4 = P1^5;
+  16          
+  17          #define PWM_LEVELS 20        /* PWM 20 级，5% 一档 */
+  18          #define RAMP_STEP  5         /* 每 20ms 加/减 5 级 -> 0~100 约 400ms */
+  19          
+  20          /* 死区补偿：占空比低于这个值电机根本转不起来。
+  21             实测方法：发 D 进调试 → 按 1（左轮）→ 用 + 慢慢加到刚转起来，记下 ? 里�
+             -� S 值；
+  22             右轮按 4 同样测。测出来的数填到这里，之后任意非零速度都会从死区往上给�
+             -�� */
+  23          #define DEAD_L     15        /* 左轮死区 %（实测值） */
+  24          #define DEAD_R     10        /* 右轮死区 %（实测值） */
+  25          
+  26          static volatile unsigned char pwm_cnt = 0;
+  27          static volatile unsigned char pwm_a = 0;    /* 左轮占空 0~20 */
+  28          static volatile unsigned char pwm_b = 0;    /* 右轮占空 0~20 */
+  29          static volatile unsigned char tick20 = 0;
+  30          
+  31          volatile unsigned char flag_20ms = 0;       /* 主循环用的 20ms 节拍 */
+  32          
+  33          static signed char cur_l = 0, cur_r = 0;    /* 当前速度（斜坡后的） */
+  34          static signed char tgt_l = 0, tgt_r = 0;    /* 目标速度 */
+  35          static unsigned char raw_mode = 0;          /* 1=不补偿死区，直接给占空比 */
+  36          
+  37          void Motor_SetRaw(unsigned char on)
+  38          {
+  39   1          raw_mode = on;
+  40   1      }
+  41          
+  42          void Motor_Init(void)
+  43          {
+  44   1          TMOD = (TMOD & 0xF0) | 0x02;   /* 定时器0 方式2，自动重装 */
+  45   1          TH0 = 0x48;                    /* 256-184=72，184×1.085us ≈ 200us */
+  46   1          TL0 = 0x48;
+  47   1          ET0 = 1;
+  48   1          TR0 = 1;
+  49   1      
+  50   1          ENA = 0; ENB = 0;
+  51   1          IN1 = 0; IN2 = 0; IN3 = 0; IN4 = 0;
+  52   1      }
+C51 COMPILER V9.54   MOTOR                                                                 11/01/2026 21:19:06 PAGE 2   
+
+  53          
+  54          /* 200us 一次：产生 20 级 PWM，同时分频出 20ms 节拍 */
+  55          void Timer0_ISR(void) interrupt 1
+  56          {
+  57   1          if (++pwm_cnt >= PWM_LEVELS) pwm_cnt = 0;
+  58   1      
+  59   1          ENA = (pwm_cnt < pwm_a);
+  60   1          ENB = (pwm_cnt < pwm_b);
+  61   1      
+  62   1          if (++tick20 >= 100) {         /* 100 × 200us = 20ms */
+  63   2              tick20 = 0;
+  64   2              flag_20ms = 1;
+  65   2          }
+  66   1      }
+  67          
+  68          /* 速度 0~100 -> 占空比级数：从死区开始线性映射到 100% */
+  69          static unsigned char duty_of(unsigned char mag, unsigned char dead)
+  70          {
+  71   1          unsigned int p;
+  72   1          if (mag == 0) return 0;
+  73   1          if (raw_mode) return (unsigned char)((unsigned int)mag * PWM_LEVELS / 100);
+  74   1          if (dead > 80) dead = 80;
+  75   1          p = (unsigned int)dead + ((unsigned int)(100 - dead) * mag) / 100;
+  76   1          if (p > 100) p = 100;
+  77   1          return (unsigned char)(p * PWM_LEVELS / 100);
+  78   1      }
+  79          
+  80          /* 把当前速度写到方向脚和占空比上 */
+  81          static void apply(void)
+  82          {
+  83   1          if (cur_l > 0) {
+  84   2              IN1 = 1; IN2 = 0;
+  85   2              pwm_a = duty_of((unsigned char)cur_l, DEAD_L);
+  86   2          } else if (cur_l < 0) {
+  87   2              IN1 = 0; IN2 = 1;
+  88   2              pwm_a = duty_of((unsigned char)(-cur_l), DEAD_L);
+  89   2          } else {
+  90   2              IN1 = 0; IN2 = 0;          /* 停止：两脚同低，电机自由滑行 */
+  91   2              pwm_a = 0;
+  92   2          }
+  93   1      
+  94   1          if (cur_r > 0) {
+  95   2              IN3 = 1; IN4 = 0;
+  96   2              pwm_b = duty_of((unsigned char)cur_r, DEAD_R);
+  97   2          } else if (cur_r < 0) {
+  98   2              IN3 = 0; IN4 = 1;
+  99   2              pwm_b = duty_of((unsigned char)(-cur_r), DEAD_R);
+ 100   2          } else {
+ 101   2              IN3 = 0; IN4 = 0;
+ 102   2              pwm_b = 0;
+ 103   2          }
+ 104   1      }
+ 105          
+ 106          void Motor_SetTarget(signed char left, signed char right)
+ 107          {
+ 108   1          if (left >  100) left  =  100;
+ 109   1          if (left < -100) left  = -100;
+ 110   1          if (right >  100) right =  100;
+ 111   1          if (right < -100) right = -100;
+ 112   1      
+ 113   1          tgt_l = left;
+ 114   1          tgt_r = right;
+C51 COMPILER V9.54   MOTOR                                                                 11/01/2026 21:19:06 PAGE 3   
+
+ 115   1      }
+ 116          
+ 117          void Motor_Stop(void)
+ 118          {
+ 119   1          tgt_l = 0; tgt_r = 0;
+ 120   1          cur_l = 0; cur_r = 0;
+ 121   1          apply();
+ 122   1      }
+ 123          
+ 124          /* 每 20ms 靠近目标一步，避免突然正反转烧驱动 */
+ 125          void Motor_Tick(void)
+ 126          {
+ 127   1          if (cur_l < tgt_l) {
+ 128   2              cur_l += RAMP_STEP;
+ 129   2              if (cur_l > tgt_l) cur_l = tgt_l;
+ 130   2          } else if (cur_l > tgt_l) {
+ 131   2              cur_l -= RAMP_STEP;
+ 132   2              if (cur_l < tgt_l) cur_l = tgt_l;
+ 133   2          }
+ 134   1      
+ 135   1          if (cur_r < tgt_r) {
+ 136   2              cur_r += RAMP_STEP;
+ 137   2              if (cur_r > tgt_r) cur_r = tgt_r;
+ 138   2          } else if (cur_r > tgt_r) {
+ 139   2              cur_r -= RAMP_STEP;
+ 140   2              if (cur_r < tgt_r) cur_r = tgt_r;
+ 141   2          }
+ 142   1      
+ 143   1          apply();
+ 144   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =    487    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     10    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

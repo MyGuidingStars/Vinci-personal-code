@@ -1,0 +1,35 @@
+C51 COMPILER V9.54   ________                                                              10/18/2026 20:56:09 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE ________
+OBJECT MODULE PLACED IN .\Objects\独立按键.obj
+COMPILER INVOKED BY: G:\Keil5\C51\BIN\C51.EXE 独立按键.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\独
+                    -立按键.lst) OBJECT(.\Objects\独立按键.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          int main () {
+   3   1              while (1) {
+   4   2                      if (P3_1 == 1) {
+   5   3                              P2 = 0xFF;
+   6   3                      }
+   7   2                      else {
+   8   3                              P2 = 0x00;
+   9   3                      }
+  10   2              }
+  11   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     13    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

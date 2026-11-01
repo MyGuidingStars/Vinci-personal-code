@@ -1,0 +1,49 @@
+C51 COMPILER V9.54   BULETOOTH                                                             10/29/2026 20:34:10 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE BULETOOTH
+OBJECT MODULE PLACED IN .\Objects\buletooth.obj
+COMPILER INVOKED BY: G:\Keil5\C51\BIN\C51.EXE buletooth.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\b
+                    -uletooth.lst) OBJECT(.\Objects\buletooth.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          #define RXSIZE 32                      // 环形缓冲区大小
+   3          
+   4          unsigned char rxbuf[RXSIZE];          // 接收数据的缓冲区
+   5          unsigned char volatile rx_head = 0;    // 写指针（中断里改）
+   6          unsigned char volatile rx_tail = 0;    // 读指针（主循环里改）
+   7          unsigned int  volatile rx_drop = 0;    // 缓冲区满了丢掉的字节数
+   8          void UART_ISR(void) interrupt 4
+   9          {
+  10   1          unsigned char c, next;
+  11   1      
+  12   1          if (RI) {                     // 是“收”触发的中断
+  13   2              RI = 0;                   // 先清零（顺序无所谓，但别忘）
+  14   2              c  = SBUF;                // 读走，硬件缓冲立刻腾空
+  15   2              next = rx_head + 1;       // 算下一个写位置
+  16   2              if (next >= RXSIZE) next = 0;   // 回卷
+  17   2              if (next != rx_tail) {    // 没满
+  18   3                  rxbuf[rx_head] = c;
+  19   3                  rx_head = next;
+  20   3              } else {
+  21   3                  rx_drop++;            // 满了，丢弃
+  22   3              }
+  23   2          }
+  24   1          if (TI) TI = 0;               // 是“发”触发的中断（发送完成）
+  25   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     76    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =     36    ----
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)

@@ -1,0 +1,4 @@
+Build target 'Target 1'
+compiling main.c...
+main.c(1): error C318: can't open file 'main.c'
+Target not created.

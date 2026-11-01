@@ -1,0 +1,184 @@
+{
+    "C51 主函数框架": {
+        "prefix": "main51",
+        "body": [
+            "#include <REGX52.H>",
+            "",
+            "void main()",
+            "{",
+            "\twhile(1)",
+            "\t{",
+            "\t\t$0",
+            "\t}",
+            "}"
+        ],
+        "description": "STC89C52RC 主函数框架"
+    },
+    "C51 延时函数(12MHz)": {
+        "prefix": "delay",
+        "body": [
+            "void ${1:Delay}(unsigned int xms)\t\t//@12.000MHz",
+            "{",
+            "\tunsigned char i, j;",
+            "\twhile (xms > 0)",
+            "\t{",
+            "\t\ti = ${2:2};",
+            "\t\tj = ${3:239};",
+            "\t\tdo",
+            "\t\t{",
+            "\t\t\twhile (--j);",
+            "\t\t} while (--i);",
+            "\t\txms--;",
+            "\t}",
+            "}"
+        ],
+        "description": "软件延时，初值按 12MHz 晶振"
+    },
+    "C51 定时器0初始化": {
+        "prefix": "timer0",
+        "body": [
+            "void Timer0_Init(void)\t\t//1毫秒@12.000MHz",
+            "{",
+            "\tTMOD &= 0xF0;\t\t\t//设置定时器模式",
+            "\tTMOD |= 0x01;\t\t\t//设置定时器模式",
+            "\tTL0 = 0x18;\t\t\t\t//设置定时初值",
+            "\tTH0 = 0xFC;\t\t\t\t//设置定时初值",
+            "\tTF0 = 0;\t\t\t\t//清除TF0标志",
+            "\tTR0 = 1;\t\t\t\t//定时器0开始计时",
+            "}"
+        ],
+        "description": "定时器0，1ms 中断@12MHz"
+    },
+    "C51 定时器0中断服务函数": {
+        "prefix": "isr0",
+        "body": [
+            "void Timer0_Routine() interrupt 1",
+            "{",
+            "\tTL0 = 0x18;\t\t\t\t//重新装填初值",
+            "\tTH0 = 0xFC;",
+            "\t$0",
+            "}"
+        ],
+        "description": "定时器0中断，中断号 1"
+    },
+    "C51 定时器1初始化": {
+        "prefix": "timer1",
+        "body": [
+            "void Timer1_Init(void)\t\t//1毫秒@12.000MHz",
+            "{",
+            "\tTMOD &= 0x0F;\t\t\t//设置定时器模式",
+            "\tTMOD |= 0x10;\t\t\t//设置定时器模式",
+            "\tTL1 = 0x18;\t\t\t\t//设置定时初值",
+            "\tTH1 = 0xFC;\t\t\t\t//设置定时初值",
+            "\tTF1 = 0;\t\t\t\t//清除TF1标志",
+            "\tTR1 = 1;\t\t\t\t//定时器1开始计时",
+            "}"
+        ]
+    },
+    "C51 串口初始化": {
+        "prefix": "uart",
+        "body": [
+            "void UART_Init(void)\t\t//${1:4800}bps@12.000MHz",
+            "{",
+            "\tPCON |= 0x80;\t\t\t//使能波特率倍速位SMOD",
+            "\tSCON = 0x50;\t\t\t//8位数据,可变波特率",
+            "\tTMOD &= 0x0F;\t\t\t//清除定时器1模式位",
+            "\tTMOD |= 0x20;\t\t\t//设定定时器1为8位自动重装方式",
+            "\tTL1 = 0x${2:F4};\t\t\t\t//设定定时初值",
+            "\tTH1 = 0x${2:F4};\t\t\t\t//设定定时器重装值",
+            "\tET1 = 0;\t\t\t\t//禁止定时器1中断",
+            "\tTR1 = 1;\t\t\t\t//启动定时器1",
+            "\tEA = 1;",
+            "\tES = 1;",
+            "}",
+            "",
+            "void UART_SendByte(unsigned char Byte)",
+            "{",
+            "\tSBUF = Byte;",
+            "\twhile (!TI);",
+            "\tTI = 0;",
+            "}",
+            "",
+            "void UART_Routine() interrupt 4",
+            "{",
+            "\tif (RI)",
+            "\t{",
+            "\t\tRI = 0;",
+            "\t\t$0",
+            "\t}",
+            "}"
+        ],
+        "description": "串口初始化+发送+接收中断（初值请用 STC-ISP 波特率计算器核对）"
+    },
+    "C51 外部中断0初始化": {
+        "prefix": "exti0",
+        "body": [
+            "void EXTI0_Init(void)",
+            "{",
+            "\tIT0 = 1;\t\t\t\t//下降沿触发",
+            "\tEX0 = 1;\t\t\t\t//使能外部中断0",
+            "\tEA = 1;\t\t\t\t//使能总中断",
+            "}"
+        ]
+    },
+    "C51 外部中断0服务函数": {
+        "prefix": "isrexti0",
+        "body": [
+            "void EXTI0_Routine() interrupt 0",
+            "{",
+            "\t$0",
+            "}"
+        ]
+    },
+    "C51 sbit 定义": {
+        "prefix": "sbit",
+        "body": [
+            "sbit ${1:LED} = ${2:P2}^${3:0};\t\t//$0"
+        ]
+    },
+    "C51 独立按键消抖": {
+        "prefix": "key",
+        "body": [
+            "if (${1:P3_1} == 0)\t\t\t//按键按下",
+            "{",
+            "\tDelay(20);\t\t\t//消抖",
+            "\tif (${1:P3_1} == 0)",
+            "\t{",
+            "\t\t$0",
+            "\t\twhile (${1:P3_1} == 0);\t//等待松手",
+            "\t}",
+            "}"
+        ],
+        "description": "独立按键，带 20ms 消抖和松手检测"
+    },
+    "C51 共阴数码管段码表": {
+        "prefix": "segtable",
+        "body": [
+            "unsigned char code SegTable[] = {",
+            "\t0x3F, 0x06, 0x5B, 0x4F, 0x66, 0x6D, 0x7D, 0x07,",
+            "\t0x7F, 0x6F, 0x77, 0x7C, 0x39, 0x5E, 0x79, 0x71",
+            "};"
+        ]
+    },
+    "C51 头文件模板": {
+        "prefix": "hd51",
+        "body": [
+            "#ifndef __${1:DELAY}_H__",
+            "#define __${1:DELAY}_H__",
+            "",
+            "void ${2:Delay}(unsigned int xms);",
+            "",
+            "#endif"
+        ],
+        "description": "模块化编程用的 .h 模板"
+    },
+    "C51 中断服务函数(通用)": {
+        "prefix": "isr",
+        "body": [
+            "void ${1:Timer0}_Routine() interrupt ${2:1}",
+            "{",
+            "\t$0",
+            "}"
+        ]
+    }
+}

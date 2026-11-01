@@ -1,0 +1,59 @@
+C51 COMPILER V9.54   ________                                                              10/18/2026 20:56:12 PAGE 1   
+
+
+C51 COMPILER V9.54, COMPILATION OF MODULE ________
+OBJECT MODULE PLACED IN .\Objects\按键消抖.obj
+COMPILER INVOKED BY: G:\Keil5\C51\BIN\C51.EXE 按键消抖.c OPTIMIZE(8,SPEED) BROWSE DEBUG OBJECTEXTEND PRINT(.\Listings\按
+                    -键消抖.lst) OBJECT(.\Objects\按键消抖.obj)
+
+line level    source
+
+   1          #include <REGX52.H>
+   2          void delay(unsigned int xms)            //@12.000MHz
+   3          {
+   4   1              while (xms < 0) {
+   5   2                      unsigned char i, j;
+   6   2      
+   7   2                      i = 2;
+   8   2                      j = 239;
+   9   2                      do
+  10   2                      {
+  11   3                              while (--j);
+  12   3                      } while (--i);
+  13   2                      xms--;
+  14   2              };
+  15   1              
+  16   1      }
+  17          
+  18          int main () {
+  19   1              delay(1);
+  20   1              while (1) {
+  21   2                      if (P3_1 == 1) {
+  22   3                              delay(20);
+  23   3                              while (P3_1 == 1);//再次检测是否按下，判断为非抖动状态
+  24   3                              delay(20);
+  25   3                              P2 = 0xFF;
+  26   3                      }
+  27   2                      else {
+  28   3                              delay(20);
+  29   3                              while (P3_1 == 0);//再次检测是否按下，判断为非抖动状态
+  30   3                              delay(20);
+  31   3                              P2 = ~P2;
+  32   3                      }
+  33   2              }
+  34   1      
+  35   1      }
+
+
+MODULE INFORMATION:   STATIC OVERLAYABLE
+   CODE SIZE        =     68    ----
+   CONSTANT SIZE    =   ----    ----
+   XDATA SIZE       =   ----    ----
+   PDATA SIZE       =   ----    ----
+   DATA SIZE        =   ----       2
+   IDATA SIZE       =   ----    ----
+   BIT SIZE         =   ----    ----
+END OF MODULE INFORMATION.
+
+
+C51 COMPILATION COMPLETE.  0 WARNING(S),  0 ERROR(S)
